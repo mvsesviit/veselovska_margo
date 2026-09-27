@@ -109,3 +109,28 @@ filterForm.addEventListener("submit", (event) => {
 });
 
 loadIncidents();
+
+document.getElementById('load-summary-btn')?.addEventListener('click', async () => {
+    const container = document.getElementById('summary-container');
+    container.textContent = 'Завантаження...';
+
+    try {
+        // apiFetch одразу повертає JSON-масив при успіху
+        const data = await apiFetch('/api/incidents/severity-summary');
+        container.textContent = '';
+
+        if (data.length === 0) {
+            container.textContent = 'Даних немає';
+            return;
+        }
+
+        // Безпечне виведення через textContent і createElement
+        data.forEach(summary => {
+            const item = document.createElement("li");
+            item.textContent = `${summary.severity}: ${summary.count}`;
+            container.append(item);
+        });
+    } catch (error) {
+        container.textContent = 'Не вдалося завантажити підсумок';
+    }
+});
