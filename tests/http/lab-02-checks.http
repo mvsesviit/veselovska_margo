@@ -24,7 +24,7 @@ Content-Type: application/json
 }
 
 ### T-01 перевірка створеного запису (встав ID з заголовка Location)
-GET {{api}}/api/incidents/ВСТАВ-СЮДИ-ID-З-LOCATION
+GET {{api}}/api/incidents/3c47a13a-7b26-4337-bdda-440d60c9eaa3
 
 ### T-02a severity 7
 POST {{api}}/api/incidents
@@ -82,3 +82,15 @@ GET {{api}}/api/incidents/search?q=%25
 
 ### T-05 невідомий sortBy, очікуємо 400
 GET {{api}}/api/incidents/search?sortBy=price
+
+### T-10 недопустимо: дата старша за 365 днів, очікуємо 400
+POST {{api}}/api/incidents
+Content-Type: application/json
+
+{ "title": "T10-bad", "description": "Штучний запис.", "severity": "Low", "occurredAtUtc": "2024-01-01T00:00:00Z" }
+
+### T-10 допустимо: дата в межах року, очікуємо 201
+POST {{api}}/api/incidents
+Content-Type: application/json
+
+{ "title": "T10-ok", "description": "Штучний запис.", "severity": "Low", "occurredAtUtc": "2026-09-01T10:00:00Z" }

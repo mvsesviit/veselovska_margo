@@ -85,6 +85,8 @@ public static class Lab02Endpoints
                 errors["occurredAtUtc"] = ["OccurredAtUtc обов'язковий."];
             else if (request.OccurredAtUtc > now.AddMinutes(5))
                 errors["occurredAtUtc"] = ["Дата не може бути в майбутньому (більше ніж на 5 хв)."];
+            else if (request.OccurredAtUtc < now.AddDays(-365))
+                 errors["occurredAtUtc"] = ["Дата не може бути раніше ніж 365 днів тому."];
 
             var title = request.Title?.Trim() ?? "";
             var description = request.Description?.Trim() ?? "";
