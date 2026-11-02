@@ -13,10 +13,16 @@ public sealed class Lab02ContractTests(SecureLabApiFactory factory)
 {
     private readonly HttpClient _client = factory.CreateClient();
 
+    private static string StudyPassword =>
+        Environment.GetEnvironmentVariable("SeedUsers__Password")
+        ?? throw new InvalidOperationException("Set local SeedUsers__Password outside Git.");
+
     // T-02: некоректний DTO -> 400 з ключем severity
     [Fact]
     public async Task Post_WithInvalidSeverity_Returns400WithSeverityKey()
     {
+        using var client = await factory.LoginAsync("alice", StudyPassword);
+
         var body = new
         {
             title = $"T02-{Guid.NewGuid():N}",
@@ -25,7 +31,7 @@ public sealed class Lab02ContractTests(SecureLabApiFactory factory)
             occurredAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10)
         };
 
-        using var response = await _client.PostAsJsonAsync("/api/incidents", body);
+        using var response = await client.PostAsJsonAsync("/api/incidents", body);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("application/problem+json",
@@ -41,6 +47,8 @@ public sealed class Lab02ContractTests(SecureLabApiFactory factory)
     [Fact]
     public async Task Post_WithDuplicateActiveTitle_Returns409()
     {
+        using var client = await factory.LoginAsync("alice", StudyPassword);
+
         var title = $"Regression-{Guid.NewGuid():N}";
         var body = new
         {
@@ -52,10 +60,10 @@ public sealed class Lab02ContractTests(SecureLabApiFactory factory)
 
         try
         {
-            using var first = await _client.PostAsJsonAsync("/api/incidents", body);
+            using var first = await client.PostAsJsonAsync("/api/incidents", body);
             Assert.Equal(HttpStatusCode.Created, first.StatusCode);
 
-            using var second = await _client.PostAsJsonAsync("/api/incidents", body);
+            using var second = await client.PostAsJsonAsync("/api/incidents", body);
             Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
             Assert.Equal("application/problem+json",
                 second.Content.Headers.ContentType?.MediaType);
@@ -99,10 +107,12 @@ public sealed class Lab02ContractTests(SecureLabApiFactory factory)
         Assert.Equal(Guid.Parse("20000000-0000-0000-0000-000000000004"), only.Id);
     }
 
-    // A-02: зайві server-managed поля ігноруються (overposting)
+    // ЛР 2: зайві server-managed поля ігноруються (overposting)
     [Fact]
     public async Task Post_WithServerManagedFields_IgnoresThem()
     {
+        using var client = await factory.LoginAsync("alice", StudyPassword);
+
         var sentId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         var title = $"Overpost-{Guid.NewGuid():N}";
         var body = new
@@ -119,7 +129,7 @@ public sealed class Lab02ContractTests(SecureLabApiFactory factory)
 
         try
         {
-            using var response = await _client.PostAsJsonAsync("/api/incidents", body);
+            using var response = await client.PostAsJsonAsync("/api/incidents", body);
             Assert.Equal(HttpStatusCode.Created, response.StatusCode);
             var created = await response.Content
                 .ReadFromJsonAsync<CreatedIncidentResponse>();
@@ -128,7 +138,7 @@ public sealed class Lab02ContractTests(SecureLabApiFactory factory)
             Assert.Equal("New", created.Status);
             Assert.True(created.CreatedAtUtc > DateTimeOffset.UtcNow.AddDays(-1));
 
-            using var detail = await _client.GetAsync($"/api/incidents/{created.Id}");
+            using var detail = await client.GetAsync($"/api/incidents/{created.Id}");
             Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
             using var doc = JsonDocument.Parse(await detail.Content.ReadAsStringAsync());
             Assert.Equal("Аліса Коваль",
