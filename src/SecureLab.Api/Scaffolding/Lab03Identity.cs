@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using SecureLab.Api.Data;
 using SecureLab.Api.Data.Entities;
+using System.Security.Claims;
 
 namespace SecureLab.Api.Scaffolding;
 
@@ -89,15 +90,25 @@ public static class Lab03Identity
             var result = await signIn.PasswordSignInAsync(input.UserName, input.Password, false, false);
             return result.Succeeded ? Results.NoContent() : Results.Unauthorized();
         });
-        app.MapPost("/api/auth/logout", () => Results.StatusCode(StatusCodes.Status501NotImplemented));
+        app.MapPost("/api/auth/logout", async (SignInManager<ApplicationUser> signIn) =>
+{
+    await signIn.SignOutAsync();
+    return Results.NoContent();
+});
         // Навмисно хибна навчальна довіра: ЛР 03 замінює заявлений id на verified principal.
-        app.MapGet("/api/me", async (HttpContext context, SecureLabDbContext db) =>
-        {
-            if (!Guid.TryParse(context.Request.Headers["X-Demo-UserId"], out var claimedId))
-                return Results.StatusCode(StatusCodes.Status501NotImplemented);
-            var user = await db.Users.FindAsync(claimedId);
-            return user is null ? Results.NotFound() : Results.Ok(new { user.Id, user.UserName, user.DisplayName });
-        });
+        app.MapGet("/api/me", async (HttpContext context, UserManager<ApplicationUser> users) =>
+{
+    // Ідентифікатор береться ЛИШЕ з перевіреного principal (cookie), не з header/body/query.
+    var idValue = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    if (!Guid.TryParse(idValue, out var verifiedId))
+        return Results.Problem(statusCode: StatusCodes.Status500InternalServerError);
+
+    var user = await users.FindByIdAsync(verifiedId.ToString());
+    if (user is null)
+        return Results.Unauthorized();
+
+    return Results.Ok(new MeResponse(user.Id, user.UserName!, user.DisplayName));
+}).RequireAuthorization();
         // Приклад лише mechanics: не повертає identity і не реалізує оцінювану operation.
         app.MapGet("/api/auth/session-check", () => Results.NoContent()).RequireAuthorization();
     }
@@ -139,3 +150,4 @@ public sealed record RegistrationInput(string? UserName, string? Email, string? 
 public sealed record LoginInput(string? UserName, string? Password);
 
 public sealed record RegistrationResponse(Guid Id, string UserName, string DisplayName);
+public sealed record MeResponse(Guid Id, string UserName, string DisplayName);
