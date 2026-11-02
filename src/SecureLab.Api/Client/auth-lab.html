@@ -1,7 +1,78 @@
 <!doctype html>
-<html lang="uk"><meta charset="utf-8"><title>ЛР 03 — сеанс</title>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ЛР 03 — сеанс</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 760px; margin: 1.5rem auto; padding: 0 1rem; }
+  fieldset { margin-bottom: 1rem; }
+  label { display: block; margin: .4rem 0; }
+  input, select, textarea { width: 100%; box-sizing: border-box; padding: .35rem; }
+  button { margin-top: .5rem; padding: .4rem .9rem; }
+  #state { font-weight: bold; padding: .4rem .6rem; border-radius: 4px; display: inline-block; }
+  #state[data-state="signed-in"] { background: #d7f5dd; }
+  #state[data-state="anonymous"] { background: #eee; }
+  #state[data-state="unknown"] { background: #ffe8b3; }
+  pre { background: #f6f6f6; padding: .6rem; white-space: pre-wrap; }
+</style>
+</head>
+<body>
 <h1>Навчальний сеанс</h1>
-<form id="login"><label>Ім’я <input name="userName" autocomplete="username" required></label>
-<label>Пароль <input name="password" type="password" autocomplete="current-password" required></label><button>Увійти</button></form>
-<button id="me">Мій профіль</button><button id="logout">Вийти</button><pre id="result"></pre>
-<script src="auth-lab.js" defer></script></html>
+<p>Стан: <span id="state" data-state="unknown">Перевіряємо…</span></p>
+
+<fieldset>
+  <legend>1. Реєстрація</legend>
+  <form id="register">
+    <label>Ім'я користувача <input name="userName" autocomplete="username" required></label>
+    <label>Email <input name="email" type="email" autocomplete="email" required></label>
+    <label>Відображуване ім'я <input name="displayName" required></label>
+    <label>Пароль <input name="password" type="password" autocomplete="new-password" required></label>
+    <button type="submit">Зареєструватися</button>
+  </form>
+</fieldset>
+
+<fieldset>
+  <legend>2. Вхід</legend>
+  <form id="login">
+    <label>Ім'я користувача <input name="userName" autocomplete="username" required></label>
+    <label>Пароль <input name="password" type="password" autocomplete="current-password" required></label>
+    <button type="submit">Увійти</button>
+  </form>
+</fieldset>
+
+<fieldset>
+  <legend>3. Профіль</legend>
+  <button id="me" type="button">Мій профіль</button>
+  <dl id="profile" hidden>
+    <dt>Id</dt><dd id="profile-id"></dd>
+    <dt>Ім'я користувача</dt><dd id="profile-userName"></dd>
+    <dt>Відображуване ім'я</dt><dd id="profile-displayName"></dd>
+  </dl>
+</fieldset>
+
+<fieldset>
+  <legend>4. Створення інциденту</legend>
+  <form id="incident">
+    <label>Заголовок (унікальний) <input name="title" maxlength="160" required></label>
+    <label>Опис (для High/Critical — мінімум 40 символів)
+      <textarea name="description" rows="3" maxlength="4000" required></textarea></label>
+    <label>Серйозність
+      <select name="severity">
+        <option>Low</option><option>Medium</option><option>High</option><option>Critical</option>
+      </select></label>
+    <label>Коли сталося <input name="occurredAt" type="datetime-local" required></label>
+    <button type="submit">Створити</button>
+  </form>
+</fieldset>
+
+<fieldset>
+  <legend>5. Вихід</legend>
+  <button id="logout" type="button">Вийти</button>
+</fieldset>
+
+<h2>Результат</h2>
+<pre id="result"></pre>
+<script src="auth-lab.js" defer></script>
+</body>
+</html>
