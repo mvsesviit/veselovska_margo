@@ -2,6 +2,10 @@ using Microsoft.AspNetCore.Identity;
 using SecureLab.Api.Data;
 using SecureLab.Api.Data.Entities;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace SecureLab.Api.Scaffolding;
 
@@ -15,6 +19,21 @@ public static class Lab03Identity
             options.Password.RequiredLength = 10;
         }).AddEntityFrameworkStores<SecureLabDbContext>().AddDefaultTokenProviders();
         builder.Services.AddAuthorization();
+                builder.Services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.AddPolicy("login", context => IpFixedWindow(context, 10, TimeSpan.FromSeconds(10)));
+            options.AddPolicy("register", context => IpFixedWindow(context, 20, TimeSpan.FromMinutes(1)));
+            options.OnRejected = (context, _) =>
+            {
+                context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("AuthEvents")
+                    .LogWarning("Auth event {EventType}: result {Result}, path {Path}, trace {TraceId}",
+                        "rate-limit", "rejected", context.HttpContext.Request.Path.Value,
+                        context.HttpContext.TraceIdentifier);
+                return ValueTask.CompletedTask;
+            };
+        });
         builder.Services.ConfigureApplicationCookie(options =>
         {
             options.Cookie.HttpOnly = true;
@@ -36,6 +55,7 @@ public static class Lab03Identity
 
     public static void MapLab03Identity(this WebApplication app)
     {
+         app.UseRateLimiter();
         app.MapPost("/api/auth/register", async (RegistrationInput input, UserManager<ApplicationUser> users) =>
 {
     var errors = ValidateRegistration(input);
@@ -80,9 +100,9 @@ public static class Lab03Identity
     var role = await users.AddToRoleAsync(user, DbSeeder.ReporterRole);
     if (!role.Succeeded) throw new InvalidOperationException("Default role assignment failed.");
 
-    return Results.Created("/api/me",
+        return Results.Created("/api/me",
         new RegistrationResponse(user.Id, user.UserName!, user.DisplayName));
-});
+}).RequireRateLimiting("register");
         app.MapPost("/api/auth/login", async (LoginInput input, SignInManager<ApplicationUser> signIn) =>
         {
             if (string.IsNullOrWhiteSpace(input.UserName) || string.IsNullOrEmpty(input.Password))
@@ -112,7 +132,24 @@ public static class Lab03Identity
         // Приклад лише mechanics: не повертає identity і не реалізує оцінювану operation.
         app.MapGet("/api/auth/session-check", () => Results.NoContent()).RequireAuthorization();
     }
+    // Ключ обмеження: IP-адреса клієнта. Лімітер вестиме окремий лічильник для кожної адреси.
+    private static RateLimitPartition<string> IpFixedWindow(HttpContext context, int permits, TimeSpan window)
+        => RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = permits,
+                Window = window,
+                QueueLimit = 0
+            });
 
+    // У журнал йде не ім'я користувача, а короткий відбиток: так у логах немає ні пароля,
+    // випадково введеного в поле імені, ні символів для підміни рядків журналу.
+    private static string Fingerprint(string? userName)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes((userName ?? "").Trim().ToLowerInvariant()));
+        return Convert.ToHexString(bytes)[..8];
+    }
     private static Dictionary<string, string[]> ValidateRegistration(RegistrationInput input)
 {
     var errors = new Dictionary<string, string[]>();
