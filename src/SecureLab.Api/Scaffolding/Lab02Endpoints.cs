@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Security.Claims;
 
 namespace SecureLab.Api.Scaffolding;
 
@@ -58,8 +59,13 @@ public static class Lab02Endpoints
         // =========================================================
         // 2. СТВОРЕННЯ ІНЦИДЕНТУ З ПЕРЕВІРКАМИ (POST /api/incidents)
         // =========================================================
-        app.MapPost("/api/incidents", async (CreateIncidentRequest request, SecureLabDbContext db, CancellationToken ct) =>
+        app.MapPost("/api/incidents", async (CreateIncidentRequest request, HttpContext httpContext, SecureLabDbContext db, CancellationToken ct) =>
         {
+            // Власник береться ЛИШЕ з перевіреного principal (cookie).
+            var idValue = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!Guid.TryParse(idValue, out var ownerId))
+                return Results.Problem(statusCode: StatusCodes.Status500InternalServerError);
+
             var errors = new Dictionary<string, string[]>();
             var now = DateTimeOffset.UtcNow;
 
@@ -117,7 +123,7 @@ public static class Lab02Endpoints
                 Description = description,
                 Severity = severity,
                 Status = IncidentStatus.New,
-                OwnerUserId = DbSeeder.AliceId,
+                 OwnerUserId = ownerId,
                 OccurredAtUtc = request.OccurredAtUtc!.Value.ToUniversalTime(),
                 CreatedAtUtc = now,
                 UpdatedAtUtc = now
@@ -128,7 +134,7 @@ public static class Lab02Endpoints
 
             var response = new CreatedIncidentResponse(incident.Id, incident.Title, incident.Severity.ToString(), incident.Status.ToString(), incident.CreatedAtUtc, incident.OccurredAtUtc);
             return Results.Created($"/api/incidents/{incident.Id}", response);
-        });
+        }).RequireAuthorization();
     }
 }
 
