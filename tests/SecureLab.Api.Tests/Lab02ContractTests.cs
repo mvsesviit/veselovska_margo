@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -11,13 +11,13 @@ namespace SecureLab.Api.Tests;
 public sealed class Lab02ContractTests(SecureLabApiFactory factory)
     : IClassFixture<SecureLabApiFactory>
 {
-    private readonly HttpClient _client = factory.CreateClient();
+
 
     private static string StudyPassword =>
         Environment.GetEnvironmentVariable("SeedUsers__Password")
         ?? throw new InvalidOperationException("Set local SeedUsers__Password outside Git.");
 
-    // T-02: некоректний DTO -> 400 з ключем severity
+    // T-02: РЅРµРєРѕСЂРµРєС‚РЅРёР№ DTO -> 400 Р· РєР»СЋС‡РµРј severity
     [Fact]
     public async Task Post_WithInvalidSeverity_Returns400WithSeverityKey()
     {
@@ -26,7 +26,7 @@ public sealed class Lab02ContractTests(SecureLabApiFactory factory)
         var body = new
         {
             title = $"T02-{Guid.NewGuid():N}",
-            description = "Штучний запис для перевірки.",
+            description = "РЁС‚СѓС‡РЅРёР№ Р·Р°РїРёСЃ РґР»СЏ РїРµСЂРµРІС–СЂРєРё.",
             severity = "7",
             occurredAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10)
         };
@@ -43,7 +43,7 @@ public sealed class Lab02ContractTests(SecureLabApiFactory factory)
         Assert.DoesNotContain("Exception", json, StringComparison.Ordinal);
     }
 
-    // T-03: повторний активний title -> 409
+    // T-03: РїРѕРІС‚РѕСЂРЅРёР№ Р°РєС‚РёРІРЅРёР№ title -> 409
     [Fact]
     public async Task Post_WithDuplicateActiveTitle_Returns409()
     {
@@ -53,7 +53,7 @@ public sealed class Lab02ContractTests(SecureLabApiFactory factory)
         var body = new
         {
             title,
-            description = "Штучний запис для перевірки конфлікту.",
+            description = "РЁС‚СѓС‡РЅРёР№ Р·Р°РїРёСЃ РґР»СЏ РїРµСЂРµРІС–СЂРєРё РєРѕРЅС„Р»С–РєС‚Сѓ.",
             severity = "Low",
             occurredAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10)
         };
@@ -78,36 +78,38 @@ public sealed class Lab02ContractTests(SecureLabApiFactory factory)
         }
     }
 
-    // S-02 (відмінний рівень): контрольний ввід -> порожня множина,
-    // а звичайний пошук USB -> рівно один запис
+    // S-02 (РІС–РґРјС–РЅРЅРёР№ СЂС–РІРµРЅСЊ): РєРѕРЅС‚СЂРѕР»СЊРЅРёР№ РІРІС–Рґ -> РїРѕСЂРѕР¶РЅСЏ РјРЅРѕР¶РёРЅР°,
+    // Р° Р·РІРёС‡Р°Р№РЅРёР№ РїРѕС€СѓРє USB -> СЂС–РІРЅРѕ РѕРґРёРЅ Р·Р°РїРёСЃ
     [Fact]
     public async Task Search_ControlInput_ReturnsExactEmptySet_AndUsbIsStillFound()
     {
+        using var client = await factory.LoginAsync("alice", StudyPassword);
         var control = "zz-no-match' OR TRUE -- ";
-        var found = await _client.GetFromJsonAsync<List<CreatedIncidentResponse>>(
+        var found = await client.GetFromJsonAsync<List<CreatedIncidentResponse>>(
             "/api/incidents/search?q=" + Uri.EscapeDataString(control));
         Assert.NotNull(found);
         Assert.Empty(found);
 
-        var usb = await _client.GetFromJsonAsync<List<CreatedIncidentResponse>>(
+        var usb = await client.GetFromJsonAsync<List<CreatedIncidentResponse>>(
             "/api/incidents/search?q=USB");
         Assert.NotNull(usb);
         var only = Assert.Single(usb);
         Assert.Equal(Guid.Parse("20000000-0000-0000-0000-000000000005"), only.Id);
     }
 
-    // T-04: легітимний апостроф
+    // T-04: Р»РµРіС–С‚РёРјРЅРёР№ Р°РїРѕСЃС‚СЂРѕС„
     [Fact]
-    public async Task Search_Apostrophe_ReturnsOnlyObrienRecord()
-    {
-        var found = await _client.GetFromJsonAsync<List<CreatedIncidentResponse>>(
+   public async Task Search_Apostrophe_ReturnsOnlyObrienRecord()
+{
+    using var client = await factory.LoginAsync("morgan", StudyPassword);
+        var found = await client.GetFromJsonAsync<List<CreatedIncidentResponse>>(
             "/api/incidents/search?q=" + Uri.EscapeDataString("O'Brien"));
         Assert.NotNull(found);
         var only = Assert.Single(found);
         Assert.Equal(Guid.Parse("20000000-0000-0000-0000-000000000004"), only.Id);
     }
 
-    // ЛР 2: зайві server-managed поля ігноруються (overposting)
+    // Р›Р  2: Р·Р°Р№РІС– server-managed РїРѕР»СЏ С–РіРЅРѕСЂСѓСЋС‚СЊСЃСЏ (overposting)
     [Fact]
     public async Task Post_WithServerManagedFields_IgnoresThem()
     {
@@ -118,7 +120,7 @@ public sealed class Lab02ContractTests(SecureLabApiFactory factory)
         var body = new
         {
             title,
-            description = "Штучний запис для перевірки overposting.",
+            description = "РЁС‚СѓС‡РЅРёР№ Р·Р°РїРёСЃ РґР»СЏ РїРµСЂРµРІС–СЂРєРё overposting.",
             severity = "Low",
             occurredAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10),
             id = sentId,
@@ -142,7 +144,7 @@ public sealed class Lab02ContractTests(SecureLabApiFactory factory)
             Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
             using var doc = JsonDocument.Parse(await detail.Content.ReadAsStringAsync());
             Assert.Equal("Аліса Коваль",
-                doc.RootElement.GetProperty("ownerDisplayName").GetString());
+    doc.RootElement.GetProperty("ownerDisplayName").GetString());
         }
         finally
         {
@@ -151,4 +153,71 @@ public sealed class Lab02ContractTests(SecureLabApiFactory factory)
             await db.Incidents.Where(item => item.Title == title).ExecuteDeleteAsync();
         }
     }
+    [Fact]
+public async Task Search_ResultsAreScopedByRole()
+{
+    const string bobIncidentId =
+        "20000000-0000-0000-0000-000000000002";
+
+    using var aliceClient = await factory.LoginAsync(
+        "alice", StudyPassword);
+
+    var aliceResults =
+        await aliceClient.GetFromJsonAsync<List<CreatedIncidentResponse>>(
+            "/api/incidents/search?q=" +
+            Uri.EscapeDataString(""));
+
+    Assert.NotNull(aliceResults);
+    Assert.DoesNotContain(
+        aliceResults,
+        item => item.Id.ToString() == bobIncidentId);
+
+    using var morganClient = await factory.LoginAsync(
+        "morgan", StudyPassword);
+
+    var analystResults =
+        await morganClient.GetFromJsonAsync<List<CreatedIncidentResponse>>(
+            "/api/incidents/search?q=" +
+            Uri.EscapeDataString(""));
+
+    Assert.NotNull(analystResults);
+    Assert.Contains(
+        analystResults,
+        item => item.Id.ToString() == bobIncidentId);
+}
+
+[Fact]
+public async Task SeveritySummary_IsScopedByRole()
+{
+    using var aliceClient = await factory.LoginAsync(
+        "alice", StudyPassword);
+
+    var aliceSummary =
+        await aliceClient.GetFromJsonAsync<
+            List<System.Text.Json.JsonElement>>(
+                "/api/incidents/severity-summary");
+
+    Assert.NotNull(aliceSummary);
+
+    var aliceCount = aliceSummary.Sum(
+        item => item.GetProperty("count").GetInt32());
+
+    Assert.True(aliceCount > 0);
+
+    using var morganClient = await factory.LoginAsync(
+        "morgan", StudyPassword);
+
+    var analystSummary =
+        await morganClient.GetFromJsonAsync<
+            List<System.Text.Json.JsonElement>>(
+                "/api/incidents/severity-summary");
+
+    Assert.NotNull(analystSummary);
+
+    var analystCount = analystSummary.Sum(
+        item => item.GetProperty("count").GetInt32());
+
+    Assert.True(analystCount > aliceCount);
+}
+
 }
