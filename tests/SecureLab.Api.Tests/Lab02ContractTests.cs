@@ -165,7 +165,7 @@ public async Task Search_ResultsAreScopedByRole()
     var aliceResults =
         await aliceClient.GetFromJsonAsync<List<CreatedIncidentResponse>>(
             "/api/incidents/search?q=" +
-            Uri.EscapeDataString(""));
+           Uri.EscapeDataString("Невідома спроба входу"));
 
     Assert.NotNull(aliceResults);
     Assert.DoesNotContain(
@@ -178,7 +178,7 @@ public async Task Search_ResultsAreScopedByRole()
     var analystResults =
         await morganClient.GetFromJsonAsync<List<CreatedIncidentResponse>>(
             "/api/incidents/search?q=" +
-            Uri.EscapeDataString(""));
+            Uri.EscapeDataString("Невідома спроба входу"));
 
     Assert.NotNull(analystResults);
     Assert.Contains(
@@ -218,6 +218,106 @@ public async Task SeveritySummary_IsScopedByRole()
         item => item.GetProperty("count").GetInt32());
 
     Assert.True(analystCount > aliceCount);
+}
+
+[Fact]
+public async Task Search_DescriptionMatches_AreScopedByOwner()
+{
+    var aliceId = Guid.Parse("10000000-0000-0000-0000-000000000001");
+    var bobId = Guid.Parse("10000000-0000-0000-0000-000000000002");
+
+   var aId = Guid.NewGuid();
+var bId = Guid.NewGuid();
+var cId = Guid.NewGuid();
+
+
+    var marker = $"MATCH-WEB04-{Guid.NewGuid():N}";
+    // D matches both branches; Union keeps one occurrence.
+var dInTitleBranch = new[] { "D" };
+var dInDescriptionBranch = new[] { "D" };
+
+Assert.Single(dInTitleBranch.Union(dInDescriptionBranch));
+    var now = DateTimeOffset.UtcNow;
+
+    await using (var scope = factory.Services.CreateAsyncScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<SecureLabDbContext>();
+
+        db.Incidents.AddRange(
+            new SecureLab.Api.Data.Entities.Incident
+            {
+                Id = aId,
+                OwnerUserId = aliceId,
+                Title = marker,
+                Description = "A: title match",
+                Severity = SecureLab.Api.Data.Entities.IncidentSeverity.Low,
+                Status = SecureLab.Api.Data.Entities.IncidentStatus.New,
+                OccurredAtUtc = now,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            },
+             new SecureLab.Api.Data.Entities.Incident
+            {
+                Id = bId,
+OwnerUserId = bobId,
+Title = "B: other owner's title no match",
+                Description = marker,
+                Severity = SecureLab.Api.Data.Entities.IncidentSeverity.Low,
+                Status = SecureLab.Api.Data.Entities.IncidentStatus.New,
+                OccurredAtUtc = now,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            },
+            new SecureLab.Api.Data.Entities.Incident
+            {
+                Id = cId,
+                OwnerUserId = aliceId,
+                Title = "C: own description match",
+                Description = marker,
+                Severity = SecureLab.Api.Data.Entities.IncidentSeverity.Low,
+                Status = SecureLab.Api.Data.Entities.IncidentStatus.New,
+                OccurredAtUtc = now,
+                CreatedAtUtc = now,
+                 UpdatedAtUtc = now
+            }
+);
+
+        await db.SaveChangesAsync();
+    }
+
+    try
+    {
+        using var aliceClient = await factory.LoginAsync("alice", StudyPassword);
+        var aliceResults = await aliceClient.GetFromJsonAsync<List<CreatedIncidentResponse>>(
+            "/api/incidents/search?q=" + Uri.EscapeDataString(marker));
+
+        Assert.NotNull(aliceResults);
+        var aliceIds = aliceResults.Select(item => item.Id).ToHashSet();
+
+       Assert.Equal(new HashSet<Guid> { aId, cId }, aliceIds);
+Assert.DoesNotContain(bId, aliceIds);
+
+        using var morganClient = await factory.LoginAsync("morgan", StudyPassword);
+        var morganResults = await morganClient.GetFromJsonAsync<List<CreatedIncidentResponse>>(
+            "/api/incidents/search?q=" + Uri.EscapeDataString(marker));
+
+        Assert.NotNull(morganResults);
+        var morganIds = morganResults.Select(item => item.Id).ToHashSet();
+
+        Assert.Equal(new HashSet<Guid> { aId, bId, cId }, morganIds);
+    }
+    finally
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<SecureLabDbContext>();
+
+        await db.Incidents
+            .Where(item =>
+    item.Id == aId ||
+    item.Id == bId ||
+    item.Id == cId)
+            .ExecuteDeleteAsync();
+    }
 }
 
 }
